@@ -1,83 +1,53 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>BasicShare</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
 
 </head>
 <body>
 
   <!-- ══════════════════════ LOGIN SCREEN ══════════════════════ -->
-  <div id="login-screen" class="screen active">
+  <div id="login-screen" class="screen">
     <div class="login-container">
 
       <div class="logo-block">
         <div class="logo-badge">BF</div>
         <h1>BasicShare</h1>
-        <p class="tagline">Accès rapide à ton club</p>
+        <p class="tagline">Quick access to your club</p>
       </div>
 
-      <button id="btn-oauth" class="btn-primary btn-full">
-        <span class="btn-icon-left">🔑</span> Se connecter avec BasicFit
-      </button>
+      <div class="login-form">
+        <div class="login-hint">
+          <p class="login-hint-title">Steps to follow</p>
+          <ol>
+            <li>If you are already logged in, click <a href="https://my.basic-fit.com" target="_blank" rel="noopener" class="link-orange">my.basic-fit.com</a> and log out</li>
+            <li>Click the button below and follow the instructions</li>
+          </ol>
+        </div>
+
+        <button id="btn-oauth" class="btn-primary btn-full">Log in via OAuth</button>
+      </div>
 
       <div id="login-message" class="login-message" style="display:none"></div>
 
-      <!-- Shown after popup opens — guides user through the "Continue" step -->
       <div id="oauth-paste-panel" class="oauth-paste-panel" style="display:none">
         <div class="oauth-steps">
-          <p class="oauth-steps-title">Dans le popup :</p>
+          <p class="oauth-steps-title">In the popup:</p>
           <ol id="oauth-steps-list">
-            <!-- filled by JS based on desktop vs mobile -->
           </ol>
         </div>
-        <div class="paste-row">
-          <input id="oauth-paste-input"
-                 type="url"
-                 inputmode="url"
-                 placeholder="com.basicfit.bfa:/oauthredirect?code=..."
-                 autocomplete="off"
-                 spellcheck="false" />
-          <button id="btn-paste-submit" class="btn-primary">OK</button>
-        </div>
-      </div>
-
-      <div class="divider"><span>ou via ton profil</span></div>
-
-      <!-- ── People ID method (easiest on mobile) ── -->
-      <div class="peopleid-form">
-        <div class="peopleid-hint">
-          <p class="peopleid-hint-title">Trouve ton People ID</p>
-          <ol>
-            <li>Connecte-toi sur <a href="https://my.basic-fit.com" target="_blank" rel="noopener" class="link-orange">my.basic-fit.com</a></li>
-            <li>Va dans <strong>Profil → Mes données personnelles → Exporter mes informations (JSON)</strong></li>
-            <li>Copie le lien et colle-le ci-dessous</li>
-          </ol>
-        </div>
-
-        <label for="pid-card">Numéro de carte</label>
-        <input id="pid-card" type="text" placeholder="ex: V012345678" autocomplete="off" />
-
-        <label for="pid-url">Lien d'export ou People ID</label>
-        <input id="pid-url" type="url" inputmode="url"
-               placeholder="https://my.basic-fit.com/member/get-data-json?peopleId=…"
-               autocomplete="off" spellcheck="false" />
-
-        <button id="btn-peopleid" class="btn-secondary btn-full">Générer le QR Code</button>
-      </div>
-
-      <div class="divider"><span>ou entrée manuelle</span></div>
-
-      <div class="manual-form">
-        <label for="manual-card">Numéro de carte</label>
-        <input id="manual-card" type="text" placeholder="ex: V012345678" autocomplete="off" />
-
-        <label for="manual-device">Device ID</label>
-        <input id="manual-device" type="text" placeholder="ex: a1b2c3d4-e5f6-7890-abcd-ef1234567890" autocomplete="off" />
-
-        <button id="btn-manual" class="btn-secondary btn-full">Générer le QR Code</button>
+        <input id="oauth-paste-input"
+               type="url"
+               inputmode="url"
+               placeholder="com.basicfit.bfa:/oauthredirect?code=..."
+               autocomplete="off"
+               spellcheck="false"
+               class="paste-input" />
+        <button id="btn-paste-submit" class="btn-primary btn-full">Connect</button>
       </div>
 
     </div>
@@ -89,27 +59,38 @@
 
       <header class="dash-header">
         <div>
-          <h2 id="member-name">Membre</h2>
-          <p id="member-club" class="dash-club"></p>
+          <h2>My Club</h2>
+          <p id="membership-type" class="dash-club" style="display:none"></p>
+          <p id="extras-text" class="dash-club" style="display:none"></p>
+          <p id="last-visit-text" class="dash-club" style="display:none"></p>
+          <div id="cooldown-bar-container" class="cooldown-container" style="display:none">
+            <div class="cooldown-track">
+              <div id="cooldown-fill" class="cooldown-fill"></div>
+            </div>
+            <p id="cooldown-text" class="cooldown-text"></p>
+          </div>
         </div>
-        <button id="btn-logout" class="btn-icon" title="Déconnexion">✕</button>
       </header>
 
-      <!-- QR card -->
       <button id="btn-show-qr" class="qr-card">
         <div class="qr-card-icon">📱</div>
         <div class="qr-card-text">
-          <span class="qr-card-title">Mon QR Code</span>
-          <span class="qr-card-subtitle">Appuie pour scanner à l'entrée</span>
+          <span class="qr-card-title">QR Code</span>
+          <span class="qr-card-subtitle">Enter the gym and use the massage chair</span>
         </div>
         <div class="qr-card-arrow">›</div>
       </button>
 
-      <!-- Info card -->
-      <div class="info-card">
-        <span class="info-label">Numéro de carte</span>
-        <span id="card-number" class="info-value">—</span>
-      </div>
+      <button id="btn-drink-qr" class="qr-card">
+        <div class="qr-card-icon">🥤</div>
+        <div class="qr-card-text">
+          <span class="qr-card-title">Free drink</span>
+          <span class="qr-card-subtitle">Refill your bottle at the drink machine</span>
+        </div>
+        <div class="qr-card-arrow">›</div>
+      </button>
+
+      <button id="btn-logout" class="btn-primary btn-full">Log out</button>
 
     </div>
   </div>
@@ -118,14 +99,10 @@
   <div id="qr-modal" class="modal-backdrop" aria-hidden="true">
     <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="QR Code">
 
-      <button id="btn-close-qr" class="modal-close" aria-label="Fermer">✕</button>
+      <button id="btn-close-qr" class="modal-close" aria-label="Close">✕</button>
 
-      <h2 class="modal-title">Ton QR Code</h2>
-      <p class="modal-subtitle">Utilise ce QR code pour accéder au club</p>
-
-      <div id="qr-warning" class="qr-warning" style="display:none">
-        ⚠️ Visite récente détectée — scanner à nouveau peut déclencher une alerte
-      </div>
+      <h2 class="modal-title">QR Code</h2>
+      <p class="modal-subtitle">Enter the gym and use the massage chair</p>
 
       <div class="qr-wrapper">
         <div class="qr-border">
@@ -137,15 +114,33 @@
         <div id="qr-progress" class="progress-fill"></div>
       </div>
 
-      <p id="qr-card-label" class="qr-card-number">Carte —</p>
+      <p id="qr-card-label" class="qr-card-number">Card —</p>
 
     </div>
   </div>
 
+  <!-- ══════════════════════ DRINK QR MODAL ══════════════════════ -->
+  <div id="drink-modal" class="modal-backdrop" aria-hidden="true">
+    <div class="modal-sheet" role="dialog" aria-modal="true" aria-label="Drink QR Code">
+      <button id="btn-close-drink" class="modal-close" aria-label="Close">✕</button>
+      <h2 class="modal-title">Free drink</h2>
+      <p class="modal-subtitle">Refill your bottle at the drink machine</p>
+      <div class="qr-wrapper">
+        <div class="qr-border">
+          <img id="drink-qr-img" width="240" height="240" alt="Drink QR Code" />
+        </div>
+      </div>
+      <div class="progress-track">
+        <div id="drink-progress" class="progress-fill"></div>
+      </div>
+      <p id="drink-code-label" class="qr-card-number">Code: —</p>
+    </div>
+  </div>
+
   <!-- ══════════════════════ LOADING OVERLAY ══════════════════════ -->
-  <div id="loading-overlay" class="loading-overlay" style="display:none" aria-live="polite">
+  <div id="loading-overlay" class="loading-overlay" aria-live="polite">
     <div class="spinner"></div>
-    <p>Chargement…</p>
+    <p>Loading…</p>
   </div>
 
   <script src="app.js"></script>

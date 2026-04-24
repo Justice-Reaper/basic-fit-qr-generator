@@ -1,9 +1,9 @@
 'use strict';
 
-// ─── Constants (mirrored from Flutter source) ──────────────────────────────
-const IOS_CLIENT_ID    = 'q6KqjlQINmjOC86rqt9JdU_i41nhD_Z4DwygpBxGiIs';
-const IOS_REDIRECT_URI = 'com.basicfit.bfa:/oauthredirect';
-const LOGIN_BASE_URL   = 'https://login.basic-fit.com';
+// ─── Constants ──────────────────────────────
+const CLIENT_ID    = 'q6KqjlQINmjOC86rqt9JdU_i41nhD_Z4DwygpBxGiIs';
+const REDIRECT_URI = 'com.basicfit.bfa:/oauthredirect';
+const AUTH_BASE_URL   = 'https://login.basic-fit.com';
 
 // ─── App State ─────────────────────────────────────────────────────────────
 const state = {
@@ -11,14 +11,11 @@ const state = {
   deviceId:      '',
   accessToken:   '',
   refreshToken:  '',
-  memberName:    '',
-  homeClub:      '',
   persistentGuid: null,
   qrTimer:       null,
 };
 
 // ─── QR Generation ─────────────────────────────────────────────────────────
-
 async function sha256hex(str) {
   const data   = new TextEncoder().encode(str);
   const buffer = await crypto.subtle.digest('SHA-256', data);
@@ -41,10 +38,6 @@ function getOrCreateGuid() {
   return state.persistentGuid;
 }
 
-function regenerateGuid() {
-  state.persistentGuid = generateGuid();
-}
-
 async function generateQrData() {
   const guid  = getOrCreateGuid();
   const time  = Math.floor(Date.now() / 1000);
@@ -55,7 +48,6 @@ async function generateQrData() {
 }
 
 // ─── PKCE Helpers ──────────────────────────────────────────────────────────
-
 function generateCodeVerifier() {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);
@@ -71,11 +63,10 @@ async function generateCodeChallenge(verifier) {
 }
 
 // ─── OAuth Flow ────────────────────────────────────────────────────────────
-
 let _activeCodeVerifier = null;
 let _activePopup        = null;
-let _activePollTimer    = null;   // server-code polling interval
-let _pastePollTimer     = null;   // delayed paste-panel reveal timeout
+let _activePollTimer    = null;
+let _pastePollTimer     = null;
 
 function cleanupOAuth() {
   if (_activePollTimer) { clearInterval(_activePollTimer); _activePollTimer = null; }
@@ -88,7 +79,7 @@ function extractCodeFromUrl(raw) {
   const search = raw.includes('?') ? raw.split('?')[1]
                : raw.includes('code=') ? raw
                : null;
-  if (!search) return raw; // treat entire input as bare code
+  if (!search) return raw;
   return new URLSearchParams(search).get('code') || '';
 }
 
@@ -101,63 +92,60 @@ async function loginWithOAuth() {
   _activeCodeVerifier = codeVerifier;
 
   const oauthUrl =
-    `${LOGIN_BASE_URL}/?state=${stateParam}` +
+    `${AUTH_BASE_URL}/?state=${stateParam}` +
     `&response_type=code` +
     `&code_challenge_method=S256` +
     `&app=true` +
     `&code_challenge=${codeChallenge}` +
-    `&redirect_uri=${encodeURIComponent(IOS_REDIRECT_URI)}` +
-    `&client_id=${IOS_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+    `&client_id=${CLIENT_ID}` +
     `&auto_login=true`;
 
-  showLoginMessage('Connecte-toi dans le popup BasicFit…', 'info');
+  showLoginMessage('Log in through the BasicFit popup…', 'info');
 
   const popup = window.open(oauthUrl, 'BasicFit Login',
     'width=520,height=700,left=200,top=80,toolbar=no,menubar=no');
 
   if (!popup || popup.closed) {
-    showLoginMessage('Les popups sont bloquées. Autorise-les pour ce site ou utilise l\'entrée manuelle.', 'error');
+    showLoginMessage('Popups are blocked. Allow them for this site and try again.', 'error');
     return;
   }
 
   _activePopup = popup;
 
-  // Detect if the popup is closed without completing login
   _activePollTimer = setInterval(() => {
     if (_activePopup && _activePopup.closed) {
       cleanupOAuth();
       if (!state.cardNumber) {
-        showLoginMessage('Popup fermé. Réessaie ou utilise l\'entrée manuelle.', 'warning');
+        showLoginMessage('Popup closed. Try again.', 'warning');
         showPastePanel(true);
       }
     }
   }, 500);
 
-  // Reveal paste panel after a few seconds so the user can copy the link
   _pastePollTimer = setTimeout(() => {
     _pastePollTimer = null;
     if (!state.cardNumber) showPastePanel(true);
   }, 5000);
 }
 
-// Called by the "OK" button next to the paste input
 async function handlePasteSubmit() {
   const raw  = document.getElementById('oauth-paste-input').value;
   const code = extractCodeFromUrl(raw);
 
   if (!code) {
-    showLoginMessage('Lien invalide. Copie bien l\'adresse du lien "Continue".', 'error');
+    showLoginMessage('Invalid link. Make sure to copy the "Continue" link address.', 'error');
     return;
   }
   if (!_activeCodeVerifier) {
-    showLoginMessage('Session expirée. Clique à nouveau sur "Se connecter".', 'error');
+    showLoginMessage('Session expired. Click "Log in" again.', 'error');
     return;
   }
 
   cleanupOAuth();
   showPastePanel(false);
-  showLoginMessage('Échange du code d\'autorisation…', 'info');
-  await exchangeCodeForToken(code, _activeCodeVerifier, IOS_REDIRECT_URI);
+  showLoginMessage('Exchanging authorization code…', 'info');
+  await exchangeCodeForToken(code, _activeCodeVerifier, REDIRECT_URI);
 }
 
 const _isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -170,20 +158,17 @@ function showPastePanel(show) {
     return;
   }
 
-  // Render instructions appropriate for the current device
   const list = document.getElementById('oauth-steps-list');
   if (_isMobile) {
     list.innerHTML = `
-      <li>Connecte-toi avec ton email BasicFit</li>
-      <li>Quand tu vois <strong>"Continue"</strong>, <strong>appuie longuement</strong> dessus</li>
-      <li>Choisis <strong>"Copier le lien"</strong></li>
-      <li>Reviens ici et colle le lien ci-dessous :</li>`;
+      <li>Log in with your email and password</li>
+      <li>When you see <strong>"You will be redirected. Click Continue"</strong>, <strong>long press</strong> on <strong>"Continue"</strong> and select <strong>"Copy link"</strong></li>
+      <li>Come back here, paste the link and click <strong>Connect</strong></li>`;
   } else {
     list.innerHTML = `
-      <li>Connecte-toi avec ton email BasicFit</li>
-      <li>Quand tu vois <strong>"Continue"</strong>, <strong>fais un clic droit</strong> dessus</li>
-      <li>Clique sur <strong>"Copier l'adresse du lien"</strong></li>
-      <li>Colle le lien ci-dessous :</li>`;
+      <li>Log in with your email and password</li>
+      <li>When you see <strong>"You will be redirected. Click Continue"</strong>, right-click or long press on <strong>"Continue"</strong> and select <strong>"Copy link address"</strong></li>
+      <li>Paste the link and click <strong>Connect</strong></li>`;
   }
 }
 
@@ -198,7 +183,7 @@ async function exchangeCodeForToken(code, codeVerifier, redirectUri) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       showLoginMessage(
-        `Échange de token échoué (${res.status}). Utilise l'entrée manuelle.`,
+        `Token exchange failed (${res.status}). Try again.`,
         'error'
       );
       console.error('[token] error:', err);
@@ -212,13 +197,13 @@ async function exchangeCodeForToken(code, codeVerifier, redirectUri) {
     localStorage.setItem('access_token',  state.accessToken);
     localStorage.setItem('refresh_token', state.refreshToken);
 
-    showLoginMessage('Connecté. Chargement de ton profil…', 'success');
+    showLoginMessage('Connected. Loading your profile…', 'success');
     showLoadingOverlay(true);
 
     await loadMemberInfo();
   } catch (err) {
     console.error('[token exchange]', err);
-    showLoginMessage('Erreur réseau lors de l\'échange. Utilise l\'entrée manuelle.', 'error');
+    showLoginMessage('Network error during exchange. Try again.', 'error');
   }
 }
 
@@ -229,20 +214,19 @@ async function loadMemberInfo() {
     });
 
     if (res.status === 401) {
-      // Try to refresh first
       const refreshed = await refreshAccessToken();
       if (refreshed) {
-        await loadMemberInfo(); // retry once
+        await loadMemberInfo();
         return;
       }
-      showLoginMessage('Session expirée. Reconnecte-toi.', 'error');
+      showLoginMessage('Session expired. Log in again.', 'error');
       showLoadingOverlay(false);
       return;
     }
 
     if (!res.ok) {
       showLoginMessage(
-        'Impossible de charger le profil. Utilise l\'entrée manuelle.',
+        'Unable to load profile. Try again.',
         'warning'
       );
       showLoadingOverlay(false);
@@ -254,20 +238,16 @@ async function loadMemberInfo() {
 
     state.cardNumber  = member.cardnumber;
     state.deviceId    = member.deviceId;
-    state.memberName  = `${member.firstname} ${member.lastname}`;
-    state.homeClub    = member.homeClub || '';
 
     localStorage.setItem('card_number',  state.cardNumber);
     localStorage.setItem('device_id',    state.deviceId);
-    localStorage.setItem('member_name',  state.memberName);
-    localStorage.setItem('home_club',    state.homeClub);
 
     showLoadingOverlay(false);
     showDashboard();
   } catch (err) {
     console.error('[member info]', err);
     showLoginMessage(
-      'Erreur réseau. Utilise l\'entrée manuelle ci-dessous.',
+      'Network error. Try again.',
       'error'
     );
     showLoadingOverlay(false);
@@ -300,21 +280,20 @@ async function refreshAccessToken() {
 }
 
 // ─── QR Code Modal ─────────────────────────────────────────────────────────
-
 async function openQrModal() {
   const modal = document.getElementById('qr-modal');
   modal.classList.add('open');
   modal.setAttribute('aria-hidden', 'false');
   document.body.style.overflow = 'hidden';
 
-  document.getElementById('qr-card-label').textContent = `Carte ${state.cardNumber}`;
+  document.getElementById('qr-card-label').textContent = `Card ${state.cardNumber}`;
 
   try {
     await renderQrCode();
     startQrRefresh();
   } catch (err) {
     console.error('[QR render]', err);
-    document.getElementById('qr-card-label').textContent = `Erreur: ${err.message}`;
+    document.getElementById('qr-card-label').textContent = `Error: ${err.message}`;
   }
 }
 
@@ -333,7 +312,7 @@ async function renderQrCode() {
 
 function startQrRefresh() {
   triggerProgressAnimation();
-  stopQrRefresh(); // clear any existing timer
+  stopQrRefresh();
 
   state.qrTimer = setInterval(async () => {
     await renderQrCode();
@@ -351,7 +330,6 @@ function stopQrRefresh() {
 function triggerProgressAnimation() {
   const bar = document.getElementById('qr-progress');
   bar.classList.remove('animating');
-  // Force reflow so the animation restarts from 0
   void bar.offsetWidth;
   bar.classList.add('animating');
 }
@@ -364,35 +342,182 @@ function closeQrModal() {
   stopQrRefresh();
 }
 
-// ─── People ID helpers ─────────────────────────────────────────────────────
+// ─── Drink QR helpers ──────────────────────────────────────────────────────
+let _drinkQrTimer = null;
 
-function extractPeopleId(input) {
-  input = input.trim();
-  // Full export URL → pull peopleId query param
+async function fetchDrinkQr() {
   try {
-    const url = new URL(input);
-    const pid = url.searchParams.get('peopleId');
-    if (pid) return pid;
-  } catch (_) {}
-  // Bare UUID anywhere in the string
-  const m = input.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
-  if (m) return m[0];
-  // Return as-is (device ID in another format)
-  return input || '';
+    const res = await fetch('/api/drink-qr');
+    const data = await res.json();
+    document.getElementById('drink-qr-img').src = data.url;
+    document.getElementById('drink-code-label').textContent = 'Code: ' + data.code;
+  } catch (err) {
+    console.error('Drink QR error:', err);
+  }
+}
+
+function triggerDrinkProgressAnimation() {
+  const bar = document.getElementById('drink-progress');
+  bar.classList.remove('animating');
+  void bar.offsetWidth;
+  bar.classList.add('animating');
+}
+
+function startDrinkQrRefresh() {
+  triggerDrinkProgressAnimation();
+  stopDrinkQrRefresh();
+  _drinkQrTimer = setInterval(async () => {
+    await fetchDrinkQr();
+    triggerDrinkProgressAnimation();
+  }, 5000);
+}
+
+function stopDrinkQrRefresh() {
+  if (_drinkQrTimer) {
+    clearInterval(_drinkQrTimer);
+    _drinkQrTimer = null;
+  }
+}
+
+async function openDrinkModal() {
+  const modal = document.getElementById('drink-modal');
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+  await fetchDrinkQr();
+  startDrinkQrRefresh();
+}
+
+function closeDrinkModal() {
+  const modal = document.getElementById('drink-modal');
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = '';
+  stopDrinkQrRefresh();
 }
 
 // ─── Screen / UI helpers ───────────────────────────────────────────────────
-
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
+let _cooldownTimer = null;
+
+const PAID_ARTICLES = {
+  massagechair: 'Massage Chair',
+};
+
+const FREE_EXTRAS = ['Yanga Sportswater'];
+
 function showDashboard() {
-  document.getElementById('member-name').textContent = state.memberName || 'Membre';
-  document.getElementById('member-club').textContent = state.homeClub   || '';
-  document.getElementById('card-number').textContent = state.cardNumber || '—';
   showScreen('dashboard-screen');
+  if (state.accessToken) loadDashboardData();
+}
+
+async function loadDashboardData() {
+  const authHeader = { Authorization: `Bearer ${state.accessToken}` };
+
+  document.getElementById('last-visit-text').style.display = '';
+  document.getElementById('last-visit-text').textContent = 'Loading...';
+
+  try {
+    const [memberRes, visitsRes] = await Promise.all([
+      fetch('/api/member', { headers: authHeader }),
+      fetch('/api/visits', { headers: authHeader }),
+    ]);
+
+    if (!memberRes.ok || !visitsRes.ok) {
+      document.getElementById('last-visit-text').textContent = 'Could not load data';
+      return;
+    }
+
+    const memberData = await memberRes.json();
+    const visitsData = await visitsRes.json();
+    const member = memberData.member;
+
+    renderLastVisit(visitsData.visits || [], member.restrictedEntryTime || 180);
+    renderMembership(member.membershipType || '');
+    renderExtras(member.articles || []);
+  } catch (err) {
+    console.error('[loadDashboardData]', err);
+    document.getElementById('last-visit-text').textContent = 'Error loading data';
+  }
+}
+
+function renderLastVisit(visits, restrictedEntryTime) {
+  const text = document.getElementById('last-visit-text');
+
+  if (visits.length === 0) {
+    text.textContent = 'No visits recorded';
+    return;
+  }
+
+  const last = visits[0];
+  const visitDate = new Date(last.swipeDateTime);
+
+  const now = new Date();
+  const diffMs = now - visitDate;
+
+  const dateStr = visitDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  const timeStr = visitDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+  text.textContent = `Last visit: ${dateStr} at ${timeStr}`;
+
+  const cooldownSec = restrictedEntryTime * 60;
+  const elapsedSec = Math.floor(diffMs / 1000);
+
+  if (elapsedSec < cooldownSec) {
+    startCooldownTimer(cooldownSec, elapsedSec);
+  } else {
+    document.getElementById('cooldown-bar-container').style.display = 'none';
+    if (_cooldownTimer) { clearInterval(_cooldownTimer); _cooldownTimer = null; }
+  }
+}
+
+function startCooldownTimer(totalSec, elapsedSec) {
+  const container = document.getElementById('cooldown-bar-container');
+  const fill = document.getElementById('cooldown-fill');
+  const text = document.getElementById('cooldown-text');
+  container.style.display = '';
+
+  if (_cooldownTimer) clearInterval(_cooldownTimer);
+
+  function update() {
+    elapsedSec++;
+    const remaining = totalSec - elapsedSec;
+    if (remaining <= 0) {
+      fill.style.width = '100%';
+      text.textContent = 'Cooldown complete — you can enter again';
+      clearInterval(_cooldownTimer);
+      _cooldownTimer = null;
+      return;
+    }
+    const pct = (elapsedSec / totalSec) * 100;
+    fill.style.width = pct + '%';
+    const remHrs = Math.floor(remaining / 3600);
+    const remMin = Math.floor((remaining % 3600) / 60);
+    const remSec = remaining % 60;
+    text.textContent = `Re-entry in ${remHrs}h ${String(remMin).padStart(2, '0')}m ${String(remSec).padStart(2, '0')}s`;
+  }
+
+  update();
+  _cooldownTimer = setInterval(update, 1000);
+}
+
+function renderMembership(type) {
+  if (!type) return;
+  const el = document.getElementById('membership-type');
+  el.style.display = '';
+  el.textContent = 'Plan: ' + type.charAt(0).toUpperCase() + type.slice(1);
+}
+
+function renderExtras(articles) {
+  const paid = articles.filter(slug => PAID_ARTICLES[slug]).map(slug => PAID_ARTICLES[slug]);
+  const all = [...paid, ...FREE_EXTRAS];
+  const el = document.getElementById('extras-text');
+  el.style.display = '';
+  el.textContent = 'Extras: ' + all.join(', ');
 }
 
 function showLoginMessage(msg, type = 'info') {
@@ -411,17 +536,15 @@ function showLoadingOverlay(show) {
 }
 
 // ─── Bootstrap ─────────────────────────────────────────────────────────────
-
 document.addEventListener('DOMContentLoaded', () => {
   // ── Restore session from localStorage ────────────────────────────────────
   const savedCard   = localStorage.getItem('card_number');
   const savedDevice = localStorage.getItem('device_id');
 
+  showLoadingOverlay(false);
   if (savedCard && savedDevice) {
     state.cardNumber   = savedCard;
     state.deviceId     = savedDevice;
-    state.memberName   = localStorage.getItem('member_name') || 'Membre';
-    state.homeClub     = localStorage.getItem('home_club')   || '';
     state.accessToken  = localStorage.getItem('access_token')  || '';
     state.refreshToken = localStorage.getItem('refresh_token') || '';
     showDashboard();
@@ -438,56 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') handlePasteSubmit();
   });
 
-  // ── People ID Login button ────────────────────────────────────────────────
-  document.getElementById('btn-peopleid').addEventListener('click', () => {
-    const card = document.getElementById('pid-card').value.trim();
-    const raw  = document.getElementById('pid-url').value.trim();
-
-    if (!card || !raw) {
-      showLoginMessage('Remplis les deux champs pour continuer.', 'error');
-      return;
-    }
-
-    const peopleId = extractPeopleId(raw);
-    if (!peopleId) {
-      showLoginMessage('Lien ou People ID invalide.', 'error');
-      return;
-    }
-
-    state.cardNumber = card;
-    state.deviceId   = peopleId;
-    state.memberName = 'Membre';
-    state.homeClub   = '';
-
-    localStorage.setItem('card_number', card);
-    localStorage.setItem('device_id',   peopleId);
-
-    hideLoginMessage();
-    showDashboard();
-  });
-
-  // ── Manual Login button ───────────────────────────────────────────────────
-  document.getElementById('btn-manual').addEventListener('click', () => {
-    const card   = document.getElementById('manual-card').value.trim();
-    const device = document.getElementById('manual-device').value.trim();
-
-    if (!card || !device) {
-      showLoginMessage('Remplis les deux champs pour continuer.', 'error');
-      return;
-    }
-
-    state.cardNumber = card;
-    state.deviceId   = device;
-    state.memberName = 'Membre';
-    state.homeClub   = '';
-
-    localStorage.setItem('card_number', card);
-    localStorage.setItem('device_id',   device);
-
-    hideLoginMessage();
-    showDashboard();
-  });
-
   // ── Show QR Code ──────────────────────────────────────────────────────────
   document.getElementById('btn-show-qr').addEventListener('click', openQrModal);
 
@@ -499,26 +572,38 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === document.getElementById('qr-modal')) closeQrModal();
   });
 
+  // ── Drink QR ──────────────────────────────────────────────────────────────
+  document.getElementById('btn-drink-qr').addEventListener('click', openDrinkModal);
+  document.getElementById('btn-close-drink').addEventListener('click', closeDrinkModal);
+  document.getElementById('drink-modal').addEventListener('click', e => {
+    if (e.target === document.getElementById('drink-modal')) closeDrinkModal();
+  });
+
+  // ── Refresh dashboard data when user returns to the tab ───────────────────
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.accessToken && document.getElementById('dashboard-screen').classList.contains('active')) {
+      loadDashboardData();
+    }
+  });
+
   // ── Keyboard: Escape closes modal ────────────────────────────────────────
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeQrModal();
+    if (e.key === 'Escape') { closeQrModal(); closeDrinkModal(); }
   });
 
   // ── Logout ────────────────────────────────────────────────────────────────
   document.getElementById('btn-logout').addEventListener('click', () => {
     stopQrRefresh();
+    if (_cooldownTimer) { clearInterval(_cooldownTimer); _cooldownTimer = null; }
     localStorage.clear();
     Object.assign(state, {
       cardNumber: '', deviceId: '', accessToken: '', refreshToken: '',
-      memberName: '', homeClub: '', persistentGuid: null, qrTimer: null,
+      persistentGuid: null, qrTimer: null,
     });
     hideLoginMessage();
     showPastePanel(false);
     _activeCodeVerifier = null;
     cleanupOAuth();
-    // Clear manual form
-    document.getElementById('manual-card').value   = '';
-    document.getElementById('manual-device').value = '';
     showScreen('login-screen');
   });
 });
