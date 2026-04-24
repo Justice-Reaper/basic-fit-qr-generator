@@ -1,0 +1,14 @@
+{
+  "name": "basicshare-web",
+  "version": "1.0.0",
+  "description": "BasicShare web app — BasicFit QR code access from your browser",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "qrcode": "^1.5.4"
+  }
+}
