@@ -154,17 +154,6 @@ app.get('/api/visits', async (req, res) => {
   }
 });
 
-// ── Free drink QR code generator ─────────────────────────────────────────
-app.get('/api/drink-qr', (req, res) => {
-  const digits = '0123456789';
-  let code = 'V000';
-  for (let i = 0; i < 6; i++) {
-    code += digits[Math.floor(Math.random() * digits.length)];
-  }
-  const url = `https://basic-fit-qr-code-generator.herokuapp.com/create-qr-code?data=${code}`;
-  res.json({ code, url });
-});
-
 // ── Fallback: serve index.html for any unmatched route ────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

@@ -1,12 +1,11 @@
 # BasicShare
 
-BasicFit QR code generator - access your gym, massage chair, and free drinks from any browser
+BasicFit QR code generator
 
 ## Features
 
 - Generate your BasicFit entry QR code
 - Enter the gym and use the massage chair
-- Generate free drink QR codes for the drink machine
 - View your membership plan, extras, and last visit
 - Re-entry cooldown timer
 - Auto-refresh dashboard data when returning to the app
